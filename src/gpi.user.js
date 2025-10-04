@@ -25,6 +25,7 @@
     editor: null,
     textarea: null,
     dragAnchor: null,
+    openHandler: null,
   };
 
   const log = (...args) => console.log('[GPI]', ...args);
@@ -61,6 +62,39 @@
     if (byLabel) return byLabel;
 
     return document.querySelector('textarea[placeholder*="이미지"]');
+  };
+
+  const detachPromptListeners = () => {
+    if (state.promptEl && state.openHandler) {
+      state.promptEl.removeEventListener('focus', state.openHandler);
+      state.promptEl.removeEventListener('click', state.openHandler);
+    }
+
+    state.promptEl = null;
+    state.openHandler = null;
+  };
+
+  const attachPromptListeners = (textarea) => {
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+
+    if (state.promptEl === textarea && state.openHandler && textarea.isConnected) {
+      return;
+    }
+
+    detachPromptListeners();
+
+    const handler = () => {
+      state.promptEl = textarea;
+      showEditor();
+    };
+
+    textarea.addEventListener('focus', handler);
+    textarea.addEventListener('click', handler);
+
+    state.promptEl = textarea;
+    state.openHandler = handler;
+
+    log('Prompt textarea listeners attached');
   };
 
   const ensureOverlay = () => {
@@ -310,38 +344,20 @@
     document.removeEventListener('mouseup', stopDrag);
   };
 
-  const attachPromptListeners = (textarea) => {
-    if (state.promptEl) return;
-
-    state.promptEl = textarea;
-
-    const openEditor = () => {
-      showEditor();
-    };
-
-    textarea.addEventListener('focus', openEditor);
-    textarea.addEventListener('click', openEditor);
-
-    log('Prompt textarea listeners attached');
+  const refreshPromptReference = () => {
+    const prompt = findPromptTextarea();
+    if (prompt) {
+      attachPromptListeners(prompt);
+    } else if (state.promptEl) {
+      detachPromptListeners();
+    }
   };
 
   const bootstrap = () => {
-    let observer;
+    refreshPromptReference();
 
-    const attemptAttach = () => {
-      const prompt = findPromptTextarea();
-      if (!prompt) return false;
-      attachPromptListeners(prompt);
-      if (observer) observer.disconnect();
-      return true;
-    };
-
-    if (attemptAttach()) return;
-
-    observer = new MutationObserver(() => {
-      if (attemptAttach()) {
-        observer.disconnect();
-      }
+    const observer = new MutationObserver(() => {
+      refreshPromptReference();
     });
 
     observer.observe(document.body, {
