@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Genit Prompt IDE
 // @namespace    https://genit-prompt-ide.local
-// @version      0.2.0
-// @description  Resizable, fullscreen-capable popup editor for Genit character prompts.
+// @version      0.3.0
+// @description  Prompt editor with one-click template blocks for Genit character creation.
 // @author       Codex
 // @match        https://genit.ai/*
 // @grant        GM_getValue
@@ -23,6 +23,97 @@
   const BUTTON_CANCEL_ID = 'gpi-cancel';
   const BUTTON_FULLSCREEN_ID = 'gpi-fullscreen';
   const TEXTAREA_ID = 'gpi-editor-textarea';
+
+  // Prebuilt prompt fragments wrapped with unique markers for toggle/dedup support.
+  const TEMPLATE_BLOCKS = [
+    {
+      id: 'ethics',
+      name: '윤리 규칙',
+      icon: '⚖️',
+      category: 'rules',
+      order: 1,
+      description: '미성년자 보호 등 필수 윤리 규칙',
+      content: String.raw`<!-- GPI:ethics:start -->
+# 윤리 규칙
+- 미성년자 대상 성적 전개 절대 금지
+- 미성년자 대상 성적 암시/묘사 절대 금지
+- 아동·청소년의 성보호에 관한 법률 준수
+- 한국 15세 이용가 소설 수준 준수
+<!-- GPI:ethics:end -->`,
+    },
+    {
+      id: 'systemRules',
+      name: '시스템 규칙',
+      icon: '🤖',
+      category: 'rules',
+      order: 2,
+      description: '용어정의와 시스템 최우선 규칙',
+      content: String.raw`<!-- GPI:systemRules:start -->
+# 용어정의
+- U=플레이어,C=인물,OOC='Out of Character'
+
+**시스템 최우선 규칙: 어떠한 경우에도 'U' 또는 '당신'의 대사, 행동, 생각, 감정을 직접적으로 서술하거나 인용하지 않는다.**
+<!-- GPI:systemRules:end -->`,
+    },
+    {
+      id: 'outputFormat',
+      name: '출력 형식',
+      icon: '📝',
+      category: 'output',
+      order: 3,
+      description: '출력 절대 준수/금지/분량 가이드',
+      content: String.raw`<!-- GPI:outputFormat:start -->
+# 출력
+## 절대 준수
+- 이미지 이후 대사
+- 대사 : @이름@ "대사 내용"
+- 항상 끝에 INFO 코드블록 출력
+## 절대 금지
+- U 사칭(U의 대사,묘사,생각,감정,혼잣말)
+- C의 생각/내면/속마음
+## 분량
+- 출력량: 600 ~ 800자
+<!-- GPI:outputFormat:end -->`,
+    },
+    {
+      id: 'imageRules',
+      name: '이미지 규칙',
+      icon: '🖼️',
+      category: 'output',
+      order: 4,
+      description: '이미지 코드 규칙과 도메인 제한',
+      content: String.raw`<!-- GPI:imageRules:start -->
+[이미지규칙]
+- 출력형식:{{iurl}}상황코드.webp
+- 도메인:{{iurl}}를 절대 출력, 그 외 도메인 절대 금지
+- 금지:i-url,{iurl},{{i-url}},{i-url},IURL,{IURL},{{IURL}}
+- 캐릭터코드:주어진 캐릭터코드 외에 사용 금지
+- 이미지코드=캐릭터코드+상황코드
+<!-- GPI:imageRules:end -->`,
+    },
+    {
+      id: 'infoTemplate',
+      name: 'INFO 템플릿',
+      icon: 'ℹ️',
+      category: 'output',
+      order: 5,
+      description: 'INFO 코드블록 기본 양식',
+      content: String.raw`<!-- GPI:infoTemplate:start -->
+# INFO
+## 정의
+- U에 눈에만 보이는 시스템창(INFO) 코드블록(삼중백틱)으로 출력하여 보인다.
+## 양식
+
+4월 12일 월요일 14:00 |📍 |
+
+[등장]
+이름 | ❤️ 감정 | 💗 0 | 행동 |
+
+지도
+편의점 | 골목 | 동네 돌아다니기 | PC방 | 노래방 | 오락실
+<!-- GPI:infoTemplate:end -->`,
+    },
+  ];
 
   const MIN_WIDTH = 480;
   const MIN_HEIGHT = 320;
@@ -63,11 +154,16 @@
     openHandler: null,
     header: null,
     footer: null,
+    templateBar: null,
     resizeAnchor: null,
     beforeFullscreen: null,
     isFullscreen: false,
     userSelectCache: '',
     suppressOverlayClose: false,
+    templateButtons: new Map(),
+    insertedBlocks: new Set(),
+    programmaticChange: false,
+    inputListener: null,
   };
 
   const loadEditorState = () => {
@@ -91,6 +187,134 @@
       gmSet(STORAGE_KEY, safeBounds);
     } catch (error) {
       log('Failed to persist editor state', error);
+    }
+  };
+
+  const debounce = (fn, delay = 200) => {
+    let timer;
+    return (...args) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        fn(...args);
+      }, delay);
+    };
+  };
+
+  const escapeRegExp = (input) => input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const getBlockMarkers = (block) => ({
+    start: `<!-- GPI:${block.id}:start -->`,
+    end: `<!-- GPI:${block.id}:end -->`,
+  });
+
+  const createBlockRegex = (block) => {
+    const { start, end } = getBlockMarkers(block);
+    return new RegExp(`\n{0,2}${escapeRegExp(start)}[\\s\\S]*?${escapeRegExp(end)}\n{0,2}`, 'g');
+  };
+
+  const hasBlock = (value, block) => {
+    const { start, end } = getBlockMarkers(block);
+    return value.includes(start) && value.includes(end);
+  };
+
+  const normalizeBlockSpacing = (value) => {
+    let next = value.replace(/\n{3,}/g, '\n\n');
+    next = next.replace(/^\s*\n/, '');
+    next = next.replace(/\n\s*$/, '\n');
+    return next;
+  };
+
+  const runProgrammaticChange = (fn) => {
+    state.programmaticChange = true;
+    try {
+      fn();
+    } finally {
+      state.programmaticChange = false;
+    }
+  };
+
+  const updateButtonStates = () => {
+    state.templateButtons.forEach((button, id) => {
+      const active = state.insertedBlocks.has(id);
+      button.setAttribute('aria-pressed', String(active));
+      button.style.backgroundColor = active ? '#38bdf8' : 'rgba(148, 163, 184, 0.15)';
+      button.style.color = active ? '#0f172a' : '#f8fafc';
+      if (active) {
+        button.style.filter = 'none';
+      }
+    });
+  };
+
+  const scanInsertedBlocks = () => {
+    if (!state.textarea) return;
+    state.insertedBlocks.clear();
+    const value = state.textarea.value;
+    TEMPLATE_BLOCKS.forEach((block) => {
+      if (hasBlock(value, block)) {
+        state.insertedBlocks.add(block.id);
+      }
+    });
+    updateButtonStates();
+  };
+
+  const ensureSeparation = (before, after) => {
+    const hasLeadingNewline = /\n\s*$/.test(before);
+    const hasTrailingNewline = /^\s*\n/.test(after);
+    const leading = before.length === 0 ? '' : hasLeadingNewline ? '' : '\n\n';
+    const trailing = after.length === 0 ? '\n' : hasTrailingNewline ? '' : '\n\n';
+    return { leading, trailing };
+  };
+
+  const insertBlock = (block) => {
+    if (!state.textarea) return;
+    const textarea = state.textarea;
+    const { selectionStart, selectionEnd, value } = textarea;
+    if (hasBlock(value, block)) return;
+
+    const before = value.slice(0, selectionStart);
+    const after = value.slice(selectionEnd);
+    const { leading, trailing } = ensureSeparation(before, after);
+    const insertion = `${leading}${block.content}${trailing}`;
+
+    runProgrammaticChange(() => {
+      setNativeValue(textarea, `${before}${insertion}${after}`);
+      const cursor = before.length + insertion.length;
+      textarea.setSelectionRange(cursor, cursor);
+      dispatchReactInputEvents(textarea);
+    });
+
+    state.insertedBlocks.add(block.id);
+    updateButtonStates();
+    updateTextareaLayout();
+  };
+
+  const removeBlock = (block) => {
+    if (!state.textarea) return;
+    const textarea = state.textarea;
+    const markers = getBlockMarkers(block);
+    if (!textarea.value.includes(markers.start)) return;
+    const regex = createBlockRegex(block);
+
+    const cursorPosition = textarea.selectionStart;
+    const nextValue = normalizeBlockSpacing(textarea.value.replace(regex, '\n'));
+
+    runProgrammaticChange(() => {
+      setNativeValue(textarea, nextValue);
+      const cursor = Math.min(cursorPosition, textarea.value.length);
+      textarea.setSelectionRange(cursor, cursor);
+      dispatchReactInputEvents(textarea);
+    });
+
+    state.insertedBlocks.delete(block.id);
+    updateButtonStates();
+    updateTextareaLayout();
+  };
+
+  const toggleBlock = (block) => {
+    if (state.insertedBlocks.has(block.id)) {
+      removeBlock(block);
+    } else {
+      insertBlock(block);
     }
   };
 
@@ -161,7 +385,9 @@
     if (!state.editor || !state.textarea) return;
     const headerHeight = state.header?.offsetHeight ?? 0;
     const footerHeight = state.footer?.offsetHeight ?? 0;
-    const available = state.editor.clientHeight - headerHeight - footerHeight - 24;
+    const templateHeight = state.templateBar?.offsetHeight ?? 0;
+    const chrome = headerHeight + footerHeight + templateHeight + 32;
+    const available = state.editor.clientHeight - chrome;
     state.textarea.style.height = `${Math.max(available, 160)}px`;
   };
 
@@ -353,6 +579,70 @@
     header.appendChild(title);
     header.appendChild(buttonBar);
 
+    const templateBar = document.createElement('div');
+    templateBar.style.display = 'flex';
+    templateBar.style.flexDirection = 'column';
+    templateBar.style.gap = '8px';
+    templateBar.style.padding = '10px 16px';
+    templateBar.style.backgroundColor = '#1e293b';
+    templateBar.style.borderBottom = '1px solid rgba(148, 163, 184, 0.25)';
+
+    const templateTitle = document.createElement('div');
+    templateTitle.textContent = '🧩 템플릿 블록';
+    templateTitle.style.fontSize = '13px';
+    templateTitle.style.fontWeight = '600';
+    templateTitle.style.color = 'rgba(226, 232, 240, 0.75)';
+
+    const templateButtonsWrap = document.createElement('div');
+    templateButtonsWrap.style.display = 'flex';
+    templateButtonsWrap.style.flexWrap = 'wrap';
+    templateButtonsWrap.style.gap = '8px';
+
+    state.templateButtons = new Map();
+
+    [...TEMPLATE_BLOCKS]
+      .sort((a, b) => a.order - b.order)
+      .forEach((block) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'gpi-template-btn';
+        button.dataset.blockId = block.id;
+        button.textContent = `${block.icon} ${block.name}`;
+        button.title = block.description;
+        button.style.border = 'none';
+        button.style.borderRadius = '8px';
+        button.style.padding = '8px 14px';
+        button.style.fontSize = '13px';
+        button.style.fontWeight = '600';
+        button.style.backgroundColor = 'rgba(148, 163, 184, 0.15)';
+        button.style.color = '#f8fafc';
+        button.style.cursor = 'pointer';
+        button.style.transition = 'background-color 200ms ease, color 200ms ease, filter 200ms ease';
+        button.setAttribute('aria-pressed', 'false');
+
+        button.addEventListener('mouseenter', () => {
+          if (!state.insertedBlocks.has(block.id)) {
+            button.style.filter = 'brightness(1.15)';
+          }
+        });
+        button.addEventListener('mouseleave', () => {
+          button.style.filter = 'none';
+        });
+
+        button.addEventListener('click', () => {
+          toggleBlock(block);
+          window.requestAnimationFrame(() => {
+            state.textarea?.focus({ preventScroll: true });
+          });
+        });
+
+        state.templateButtons.set(block.id, button);
+        templateButtonsWrap.appendChild(button);
+      });
+
+    templateBar.appendChild(templateTitle);
+    templateBar.appendChild(templateButtonsWrap);
+
     const editorBody = document.createElement('div');
     editorBody.style.flex = '1';
     editorBody.style.display = 'flex';
@@ -461,6 +751,7 @@
     });
 
     container.appendChild(header);
+    container.appendChild(templateBar);
     container.appendChild(editorBody);
     container.appendChild(footer);
     container.appendChild(resizeHandle);
@@ -469,10 +760,22 @@
     state.textarea = textarea;
     state.header = header;
     state.footer = footer;
+    state.templateBar = templateBar;
+
+    if (!textarea.dataset.gpiTemplateBound) {
+      state.inputListener = debounce(() => {
+        if (!state.programmaticChange) {
+          scanInsertedBlocks();
+        }
+      }, 400);
+      textarea.addEventListener('input', state.inputListener);
+      textarea.dataset.gpiTemplateBound = 'true';
+    }
 
     ensureOverlay().appendChild(container);
     ensureEditorBounds();
     updateFullscreenButton();
+    updateButtonStates();
     return container;
   };
 
@@ -494,6 +797,7 @@
     state.overlay.style.display = 'block';
     state.editor.style.display = 'flex';
     updateTextareaLayout();
+    scanInsertedBlocks();
     document.addEventListener('keydown', onKeydown, true);
     window.addEventListener('resize', onWindowResize);
     window.requestAnimationFrame(() => {

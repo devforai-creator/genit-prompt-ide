@@ -10,11 +10,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- 여러 프롬프트 프리셋 저장/관리
-- 프리셋 목록 UI
+- 프롬프트 마법사 (Wizard) - 문답 형식으로 프롬프트 생성
 - 문법 하이라이팅
 - 변수 치환 시스템
 - Import/Export 기능
+
+---
+
+## [0.3.0] - 2025-10-04
+
+### Added - 원클릭 템플릿 블록 삽입 (Milestone 3) 🎯 MVP 달성
+- 🧩 **5개 템플릿 블록**: 윤리 규칙, 시스템 규칙, 출력 형식, 이미지 규칙, INFO 템플릿
+- 🔘 **원클릭 삽입/제거**: 버튼 클릭으로 즉시 토글
+- 🏷️ **HTML 주석 마커**: `<!-- GPI:blockId:start/end -->`로 안전한 식별
+- 🎨 **버튼 상태 시각화**: 삽입된 블록은 파란색 하이라이트 + `aria-pressed`
+- 🔄 **자동 상태 복원**: 에디터 오픈 시 기존 블록 자동 감지
+- 📍 **커서 위치 삽입**: 현재 커서 위치에 적절한 간격으로 삽입
+- 🚫 **중복 방지**: 이미 삽입된 블록은 재삽입 불가
+- ⚡ **실시간 동기화**: 사용자 수동 편집 감지 (디바운스 400ms)
+
+### Changed
+- 에디터 레이아웃에 템플릿 바 추가 (헤더 아래)
+- `updateTextareaLayout()`에서 템플릿 바 높이 반영
+- 버전 0.2.0 → 0.3.0
+
+### Technical Details
+- `TEMPLATE_BLOCKS` 배열 구조 (순서/카테고리 관리)
+- `String.raw` 템플릿 리터럴로 이스케이프 문제 방지
+- `programmaticChange` 플래그로 불필요한 scan 방지
+- `debounce()` 유틸리티로 성능 최적화
+- `normalizeBlockSpacing()` 함수로 개행 정리
+- 정규식 기반 블록 제거 (마커 사이 전체 삭제)
+
+### UX Improvements
+- 템플릿 버튼에 툴팁 표시 (설명 포함)
+- 버튼 hover 시 brightness 효과
+- 200ms transition으로 부드러운 상태 전환
+- 버튼 클릭 후 자동 포커스 복원
+
+### Fixed
+- 블록 삽입 시 적절한 간격 자동 계산
+- 블록 제거 시 과도한 개행 정리
 
 ---
 
@@ -93,7 +129,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/devforai-creator/genit-prompt-ide/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/devforai-creator/genit-prompt-ide/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.3.0
 [0.2.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.2.0
 [0.1.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.1.0
 [0.0.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.0.0
