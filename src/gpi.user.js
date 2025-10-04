@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genit Prompt IDE
 // @namespace    https://genit-prompt-ide.local
-// @version      0.3.0
+// @version      1.0.0
 // @description  Prompt editor with one-click template blocks for Genit character creation.
 // @author       Codex
 // @match        https://genit.ai/*
@@ -115,6 +115,49 @@
     },
   ];
 
+  const getTemplateContent = (id) => {
+    const block = TEMPLATE_BLOCKS.find((candidate) => candidate.id === id);
+    return block?.content ?? '';
+  };
+
+  const defaultWizardData = () => ({
+    world: {
+      typeOption: 'school',
+      typeCustom: '',
+      specialRules: '',
+      playerRoleOption: 'student',
+      playerRoleCustom: '',
+      locations: '',
+    },
+    character: {
+      name: '',
+      roleOption: 'friend',
+      roleCustom: '',
+      traits: '',
+      address: '너',
+      speechLevel: 'banmal',
+      imageCode: '',
+    },
+  });
+
+  const WORLD_TYPE_LABELS = {
+    school: '학교/일상',
+    fantasy: '판타지',
+    city: '현대 도시',
+  };
+
+  const PLAYER_ROLE_LABELS = {
+    student: '평범한 학생',
+    amnesia: '기억을 잃은 채 깨어남',
+    hiddenPower: '특별한 능력을 숨기고 있음',
+  };
+
+  const CHARACTER_ROLE_LABELS = {
+    friend: '여사친/남사친',
+    rival: '라이벌',
+    mentor: '스승',
+  };
+
   const MIN_WIDTH = 480;
   const MIN_HEIGHT = 320;
 
@@ -164,6 +207,16 @@
     insertedBlocks: new Set(),
     programmaticChange: false,
     inputListener: null,
+    wizardActive: false,
+    wizardOverlay: null,
+    wizardModal: null,
+    wizardContent: null,
+    wizardFooter: null,
+    wizardStepLabel: null,
+    wizardStep: 1,
+    wizardData: defaultWizardData(),
+    wizardPreviewText: '',
+    wizardFormRefs: null,
   };
 
   const loadEditorState = () => {
@@ -348,6 +401,1100 @@
   const restoreUserSelect = () => {
     document.body.style.userSelect = state.userSelectCache || '';
     state.userSelectCache = '';
+  };
+
+  const buildInfoBlock = (locations) => {
+    const locationLine = locations.length ? locations.join(' | ') : '편의점 | 골목 | PC방 | 노래방';
+    return String.raw`<!-- GPI:infoTemplate:start -->
+# INFO
+## 정의
+- U에 눈에만 보이는 시스템창(INFO) 코드블록(삼중백틱)으로 출력하여 보인다.
+## 양식
+
+4월 12일 월요일 14:00 |📍 |
+
+[등장]
+이름 | ❤️ 감정 | 💗 0 | 행동 |
+
+지도
+${locationLine}
+<!-- GPI:infoTemplate:end -->`;
+  };
+
+  const formatBulletList = (items, indent = '') => {
+    return items.map((item) => `${indent}- ${item}`).join('\n');
+  };
+
+  const buildWizardPrompt = () => {
+    const data = state.wizardData ?? defaultWizardData();
+    const world = data.world;
+    const character = data.character;
+
+    const worldType = world.typeOption === 'custom'
+      ? world.typeCustom.trim()
+      : WORLD_TYPE_LABELS[world.typeOption] ?? world.typeOption;
+
+    const playerRole = world.playerRoleOption === 'custom'
+      ? world.playerRoleCustom.trim()
+      : PLAYER_ROLE_LABELS[world.playerRoleOption] ?? world.playerRoleOption;
+
+    const characterRole = character.roleOption === 'custom'
+      ? character.roleCustom.trim()
+      : CHARACTER_ROLE_LABELS[character.roleOption] ?? character.roleOption;
+
+    const specialRules = world.specialRules
+      .split('\n')
+      .map((rule) => rule.trim())
+      .filter(Boolean);
+
+    const locations = world.locations
+      .split(',')
+      .map((loc) => loc.trim())
+      .filter(Boolean);
+
+    const traits = character.traits
+      .split(',')
+      .map((trait) => trait.trim())
+      .filter(Boolean);
+
+    const speechLabel = character.speechLevel === 'jondaemal' ? '존댓말' : '반말';
+    const imageCode = character.imageCode.trim().toUpperCase();
+
+    const sections = [];
+
+    ['ethics', 'systemRules', 'outputFormat', 'imageRules'].forEach((id) => {
+      const content = getTemplateContent(id);
+      if (content) {
+        sections.push(content);
+      }
+    });
+
+    const worldLines = [`# 작품`, `- 설명: ${worldType || '세계관을 소개해주세요'}`];
+    if (playerRole) {
+      worldLines.push(`- 플레이어 설정: ${playerRole}`);
+    }
+    if (specialRules.length) {
+      worldLines.push('- 특별 규칙:');
+      worldLines.push(formatBulletList(specialRules, '  '));
+    }
+    if (locations.length) {
+      worldLines.push('- 주요 장소:');
+      worldLines.push(formatBulletList(locations, '  '));
+    }
+    sections.push(worldLines.join('\n'));
+
+    const characterLines = [`# 인물`, `## ${character.name}`];
+    if (characterRole) {
+      characterLines.push(`- 역할: ${characterRole}`);
+    }
+    if (traits.length) {
+      characterLines.push(`- 성격: ${traits.join(', ')}`);
+    }
+    if (character.address) {
+      characterLines.push(`- 플레이어 호칭: ${character.address}`);
+    }
+    characterLines.push(`- 말투: ${speechLabel}`);
+    sections.push(characterLines.join('\n'));
+
+    if (character.name && imageCode) {
+      sections.push(`#캐릭터코드\n${character.name}=${imageCode}_`);
+    }
+
+    sections.push(buildInfoBlock(locations));
+
+    return sections.filter(Boolean).join('\n\n').trim();
+  };
+
+  const ensureWizardStructure = () => {
+    if (state.wizardOverlay) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'gpi-wizard-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(15, 23, 42, 0.65)';
+    overlay.style.backdropFilter = 'blur(2px)';
+    overlay.style.display = 'none';
+    overlay.style.zIndex = '2147483648';
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        closeWizard();
+      }
+    });
+
+    const modal = document.createElement('div');
+    modal.id = 'gpi-wizard-modal';
+    modal.style.position = 'absolute';
+    modal.style.top = '50%';
+    modal.style.left = '50%';
+    modal.style.transform = 'translate(-50%, -50%)';
+    modal.style.width = 'min(820px, 90vw)';
+    modal.style.maxHeight = '80vh';
+    modal.style.display = 'flex';
+    modal.style.flexDirection = 'column';
+    modal.style.backgroundColor = '#0f172a';
+    modal.style.borderRadius = '12px';
+    modal.style.border = '1px solid rgba(148, 163, 184, 0.35)';
+    modal.style.boxShadow = '0 24px 60px rgba(15, 23, 42, 0.45)';
+    modal.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.justifyContent = 'space-between';
+    header.style.padding = '16px 20px';
+    header.style.borderBottom = '1px solid rgba(148, 163, 184, 0.3)';
+
+    const title = document.createElement('div');
+    title.textContent = '🧙 프롬프트 마법사';
+    title.style.fontSize = '18px';
+    title.style.fontWeight = '600';
+    title.style.color = '#f8fafc';
+
+    const headerRight = document.createElement('div');
+    headerRight.style.display = 'flex';
+    headerRight.style.alignItems = 'center';
+    headerRight.style.gap = '12px';
+
+    const stepLabel = document.createElement('span');
+    stepLabel.style.fontSize = '13px';
+    stepLabel.style.color = 'rgba(226, 232, 240, 0.7)';
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.textContent = '×';
+    closeButton.setAttribute('aria-label', '마법사 닫기');
+    closeButton.style.width = '32px';
+    closeButton.style.height = '32px';
+    closeButton.style.border = 'none';
+    closeButton.style.borderRadius = '8px';
+    closeButton.style.backgroundColor = 'rgba(148, 163, 184, 0.15)';
+    closeButton.style.color = '#f8fafc';
+    closeButton.style.fontSize = '20px';
+    closeButton.style.cursor = 'pointer';
+    closeButton.addEventListener('click', () => {
+      closeWizard();
+    });
+
+    headerRight.appendChild(stepLabel);
+    headerRight.appendChild(closeButton);
+
+    header.appendChild(title);
+    header.appendChild(headerRight);
+
+    const content = document.createElement('div');
+    content.className = 'gpi-wizard-content';
+    content.style.flex = '1';
+    content.style.overflow = 'auto';
+    content.style.padding = '20px';
+    content.style.display = 'flex';
+    content.style.flexDirection = 'column';
+    content.style.gap = '16px';
+    content.style.color = '#e2e8f0';
+    content.style.fontSize = '14px';
+    content.style.lineHeight = '1.6';
+
+    const footer = document.createElement('div');
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'space-between';
+    footer.style.alignItems = 'center';
+    footer.style.padding = '16px 20px';
+    footer.style.borderTop = '1px solid rgba(148, 163, 184, 0.25)';
+    footer.style.gap = '12px';
+
+    modal.appendChild(header);
+    modal.appendChild(content);
+    modal.appendChild(footer);
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    state.wizardOverlay = overlay;
+    state.wizardModal = modal;
+    state.wizardContent = content;
+    state.wizardFooter = footer;
+    state.wizardStepLabel = stepLabel;
+  };
+
+  const resetWizardFormRefs = () => {
+    state.wizardFormRefs = null;
+  };
+
+  const openWizard = () => {
+    if (!state.textarea) return;
+    if (state.wizardActive) {
+      state.wizardStep = 1;
+      renderWizardStep();
+      return;
+    }
+    ensureWizardStructure();
+    state.wizardOverlay.style.display = 'block';
+    state.wizardModal.style.display = 'flex';
+    state.wizardActive = true;
+    state.wizardStep = 1;
+    if (!state.wizardData) {
+      state.wizardData = defaultWizardData();
+    }
+    renderWizardStep();
+  };
+
+  const closeWizard = () => {
+    if (!state.wizardOverlay) return;
+    state.wizardOverlay.style.display = 'none';
+    state.wizardActive = false;
+    state.wizardStep = 1;
+    resetWizardFormRefs();
+  };
+
+  const setFieldError = (errorEl, message) => {
+    if (!errorEl) return;
+    errorEl.textContent = message ?? '';
+  };
+
+  const createSection = (title) => {
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.gap = '8px';
+
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    heading.style.margin = '0';
+    heading.style.fontSize = '15px';
+    heading.style.color = '#f8fafc';
+    heading.style.fontWeight = '600';
+
+    wrapper.appendChild(heading);
+    return wrapper;
+  };
+
+  const createRadioField = (name, options, selectedValue, customValue, placeholder) => {
+    const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.gap = '8px';
+
+    const radiosContainer = document.createElement('div');
+    radiosContainer.style.display = 'flex';
+    radiosContainer.style.flexWrap = 'wrap';
+    radiosContainer.style.gap = '12px';
+
+    const radioRefs = [];
+    let customInput = null;
+
+    options.forEach((option) => {
+      const label = document.createElement('label');
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '6px';
+      label.style.cursor = 'pointer';
+
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = name;
+      input.value = option.value;
+      input.checked = option.value === selectedValue;
+
+      label.appendChild(input);
+      label.append(option.label);
+
+      radioRefs.push(input);
+      radiosContainer.appendChild(label);
+
+      if (option.value === 'custom') {
+        const customWrapper = document.createElement('div');
+        customWrapper.style.display = input.checked ? 'block' : 'none';
+        customWrapper.style.marginLeft = '24px';
+
+        const customField = document.createElement('input');
+        customField.type = 'text';
+        customField.placeholder = placeholder;
+        customField.value = customValue;
+        customField.style.width = '100%';
+        customField.style.padding = '10px 12px';
+        customField.style.borderRadius = '8px';
+        customField.style.border = '1px solid rgba(148, 163, 184, 0.4)';
+        customField.style.backgroundColor = '#020617';
+        customField.style.color = '#f8fafc';
+
+        customWrapper.appendChild(customField);
+        wrapper.appendChild(customWrapper);
+
+        input.addEventListener('change', () => {
+          customWrapper.style.display = input.checked ? 'block' : 'none';
+          if (input.checked) {
+            customField.focus();
+          }
+        });
+
+        customInput = customField;
+      } else {
+        input.addEventListener('change', () => {
+          if (customInput) {
+            customInput.parentElement.style.display = 'none';
+          }
+        });
+      }
+    });
+
+    wrapper.appendChild(radiosContainer);
+
+    return { wrapper, radioRefs, customInput };
+  };
+
+  const renderWorldStep = () => {
+    const content = state.wizardContent;
+    content.innerHTML = '';
+    resetWizardFormRefs();
+
+    const worldData = state.wizardData.world;
+    const refs = {
+      typeRadios: [],
+      typeCustom: null,
+      typeError: null,
+      specialRules: null,
+      playerRadios: [],
+      playerCustom: null,
+      playerError: null,
+      locations: null,
+      locationsError: null,
+    };
+
+    const section = createSection('세계관 설정');
+
+    // Q1: 세계관 유형
+    const q1 = document.createElement('div');
+    q1.style.display = 'flex';
+    q1.style.flexDirection = 'column';
+    q1.style.gap = '6px';
+
+    const q1Label = document.createElement('span');
+    q1Label.textContent = '세계관 유형은?';
+    q1Label.style.fontWeight = '500';
+    q1.appendChild(q1Label);
+
+    const { wrapper: q1Wrapper, radioRefs: typeRadios, customInput: typeCustom } = createRadioField(
+      'gpi-wizard-world-type',
+      [
+        { value: 'school', label: '학교/일상' },
+        { value: 'fantasy', label: '판타지' },
+        { value: 'city', label: '현대 도시' },
+        { value: 'custom', label: '직접 입력' },
+      ],
+      worldData.typeOption,
+      worldData.typeCustom,
+      '예: 사이버펑크 미래의 뒷골목'
+    );
+
+    typeRadios.forEach((radio) => {
+      radio.addEventListener('change', () => {
+        setFieldError(refs.typeError, '');
+      });
+    });
+
+    refs.typeRadios = typeRadios;
+    refs.typeCustom = typeCustom;
+
+    q1.appendChild(q1Wrapper);
+    const q1Error = document.createElement('div');
+    q1Error.style.fontSize = '12px';
+    q1Error.style.color = '#f87171';
+    refs.typeError = q1Error;
+    q1.appendChild(q1Error);
+
+    section.appendChild(q1);
+
+    // Q2: 특별 규칙
+    const q2 = document.createElement('div');
+    q2.style.display = 'flex';
+    q2.style.flexDirection = 'column';
+    q2.style.gap = '6px';
+
+    const q2Label = document.createElement('span');
+    q2Label.innerHTML = '특별한 규칙이 있나요? <span style="color:rgba(226,232,240,0.6);">(선택)</span>';
+    q2Label.style.fontWeight = '500';
+    q2.appendChild(q2Label);
+
+    const specialRules = document.createElement('textarea');
+    specialRules.rows = 4;
+    specialRules.placeholder = '예: 마나는 1~10으로 측정되며, 3 이하면 입학 불가';
+    specialRules.value = worldData.specialRules;
+    specialRules.style.resize = 'vertical';
+    specialRules.style.padding = '12px';
+    specialRules.style.borderRadius = '8px';
+    specialRules.style.border = '1px solid rgba(148, 163, 184, 0.4)';
+    specialRules.style.backgroundColor = '#020617';
+    specialRules.style.color = '#f8fafc';
+
+    refs.specialRules = specialRules;
+    q2.appendChild(specialRules);
+
+    section.appendChild(q2);
+
+    // Q3: 플레이어 역할
+    const q3 = document.createElement('div');
+    q3.style.display = 'flex';
+    q3.style.flexDirection = 'column';
+    q3.style.gap = '6px';
+
+    const q3Label = document.createElement('span');
+    q3Label.textContent = '플레이어는 어떤 존재인가요?';
+    q3Label.style.fontWeight = '500';
+    q3.appendChild(q3Label);
+
+    const { wrapper: q3Wrapper, radioRefs: playerRadios, customInput: playerCustom } = createRadioField(
+      'gpi-wizard-player-role',
+      [
+        { value: 'student', label: '평범한 학생' },
+        { value: 'amnesia', label: '기억 상실' },
+        { value: 'hiddenPower', label: '특별한 능력 숨김' },
+        { value: 'custom', label: '직접 입력' },
+      ],
+      worldData.playerRoleOption,
+      worldData.playerRoleCustom,
+      '예: 왕좌 계승권을 노리는 귀족'
+    );
+
+    playerRadios.forEach((radio) => {
+      radio.addEventListener('change', () => {
+        setFieldError(refs.playerError, '');
+      });
+    });
+
+    refs.playerRadios = playerRadios;
+    refs.playerCustom = playerCustom;
+
+    q3.appendChild(q3Wrapper);
+    const q3Error = document.createElement('div');
+    q3Error.style.fontSize = '12px';
+    q3Error.style.color = '#f87171';
+    refs.playerError = q3Error;
+    q3.appendChild(q3Error);
+
+    section.appendChild(q3);
+
+    // Q4: 주요 장소
+    const q4 = document.createElement('div');
+    q4.style.display = 'flex';
+    q4.style.flexDirection = 'column';
+    q4.style.gap = '6px';
+
+    const q4Label = document.createElement('span');
+    q4Label.innerHTML = '주요 장소는? <span style="color:rgba(226,232,240,0.6);">(쉼표로 구분, INFO 지도에 표시됩니다)</span>';
+    q4Label.style.fontWeight = '500';
+    q4.appendChild(q4Label);
+
+    const locations = document.createElement('input');
+    locations.type = 'text';
+    locations.placeholder = '예: 편의점, 골목, PC방, 노래방';
+    locations.value = worldData.locations;
+    locations.style.width = '100%';
+    locations.style.padding = '10px 12px';
+    locations.style.borderRadius = '8px';
+    locations.style.border = '1px solid rgba(148, 163, 184, 0.4)';
+    locations.style.backgroundColor = '#020617';
+    locations.style.color = '#f8fafc';
+    locations.addEventListener('input', () => {
+      setFieldError(refs.locationsError, '');
+    });
+
+    refs.locations = locations;
+    q4.appendChild(locations);
+
+    const q4Error = document.createElement('div');
+    q4Error.style.fontSize = '12px';
+    q4Error.style.color = '#f87171';
+    refs.locationsError = q4Error;
+    q4.appendChild(q4Error);
+
+    section.appendChild(q4);
+
+    content.appendChild(section);
+
+    state.wizardFormRefs = { world: refs };
+  };
+
+  const renderCharacterStep = () => {
+    const content = state.wizardContent;
+    content.innerHTML = '';
+    resetWizardFormRefs();
+
+    const charData = state.wizardData.character;
+    const refs = {
+      name: null,
+      nameError: null,
+      roleRadios: [],
+      roleCustom: null,
+      roleError: null,
+      traits: null,
+      traitsError: null,
+      address: null,
+      speechRadios: [],
+      imageCode: null,
+      imageError: null,
+    };
+
+    const section = createSection('핵심 인물');
+
+    // 이름
+    const nameField = document.createElement('div');
+    nameField.style.display = 'flex';
+    nameField.style.flexDirection = 'column';
+    nameField.style.gap = '6px';
+
+    const nameLabel = document.createElement('span');
+    nameLabel.textContent = '이름은?';
+    nameLabel.style.fontWeight = '500';
+    nameField.appendChild(nameLabel);
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = '예: 제니';
+    nameInput.value = charData.name;
+    nameInput.style.width = '100%';
+    nameInput.style.padding = '10px 12px';
+    nameInput.style.borderRadius = '8px';
+    nameInput.style.border = '1px solid rgba(148, 163, 184, 0.4)';
+    nameInput.style.backgroundColor = '#020617';
+    nameInput.style.color = '#f8fafc';
+    nameInput.addEventListener('input', () => {
+      setFieldError(refs.nameError, '');
+    });
+
+    refs.name = nameInput;
+    nameField.appendChild(nameInput);
+
+    const nameError = document.createElement('div');
+    nameError.style.fontSize = '12px';
+    nameError.style.color = '#f87171';
+    refs.nameError = nameError;
+    nameField.appendChild(nameError);
+
+    section.appendChild(nameField);
+
+    // 역할
+    const roleField = document.createElement('div');
+    roleField.style.display = 'flex';
+    roleField.style.flexDirection = 'column';
+    roleField.style.gap = '6px';
+
+    const roleLabel = document.createElement('span');
+    roleLabel.textContent = '역할/직책은?';
+    roleLabel.style.fontWeight = '500';
+    roleField.appendChild(roleLabel);
+
+    const { wrapper: roleWrapper, radioRefs: roleRadios, customInput: roleCustom } = createRadioField(
+      'gpi-wizard-character-role',
+      [
+        { value: 'friend', label: '여사친/남사친' },
+        { value: 'rival', label: '라이벌' },
+        { value: 'mentor', label: '스승' },
+        { value: 'custom', label: '직접 입력' },
+      ],
+      charData.roleOption,
+      charData.roleCustom,
+      '예: 정보 브로커'
+    );
+
+    roleRadios.forEach((radio) => {
+      radio.addEventListener('change', () => {
+        setFieldError(refs.roleError, '');
+      });
+    });
+
+    refs.roleRadios = roleRadios;
+    refs.roleCustom = roleCustom;
+
+    roleField.appendChild(roleWrapper);
+
+    const roleError = document.createElement('div');
+    roleError.style.fontSize = '12px';
+    roleError.style.color = '#f87171';
+    refs.roleError = roleError;
+    roleField.appendChild(roleError);
+
+    section.appendChild(roleField);
+
+    // 성격/특징
+    const traitsField = document.createElement('div');
+    traitsField.style.display = 'flex';
+    traitsField.style.flexDirection = 'column';
+    traitsField.style.gap = '6px';
+
+    const traitsLabel = document.createElement('span');
+    traitsLabel.textContent = '성격/특징은? (쉼표로 구분)';
+    traitsLabel.style.fontWeight = '500';
+    traitsField.appendChild(traitsLabel);
+
+    const traitsInput = document.createElement('input');
+    traitsInput.type = 'text';
+    traitsInput.placeholder = '예: 친근함, 장난스러움, 밝음';
+    traitsInput.value = charData.traits;
+    traitsInput.style.width = '100%';
+    traitsInput.style.padding = '10px 12px';
+    traitsInput.style.borderRadius = '8px';
+    traitsInput.style.border = '1px solid rgba(148, 163, 184, 0.4)';
+    traitsInput.style.backgroundColor = '#020617';
+    traitsInput.style.color = '#f8fafc';
+    traitsInput.addEventListener('input', () => {
+      setFieldError(refs.traitsError, '');
+    });
+
+    refs.traits = traitsInput;
+    traitsField.appendChild(traitsInput);
+
+    const traitsError = document.createElement('div');
+    traitsError.style.fontSize = '12px';
+    traitsError.style.color = '#f87171';
+    refs.traitsError = traitsError;
+    traitsField.appendChild(traitsError);
+
+    section.appendChild(traitsField);
+
+    // 호칭 & 말투
+    const addressField = document.createElement('div');
+    addressField.style.display = 'flex';
+    addressField.style.flexDirection = 'column';
+    addressField.style.gap = '6px';
+
+    const addressLabel = document.createElement('span');
+    addressLabel.textContent = '플레이어를 어떻게 부르나요? 말투는?';
+    addressLabel.style.fontWeight = '500';
+    addressField.appendChild(addressLabel);
+
+    const addressInput = document.createElement('input');
+    addressInput.type = 'text';
+    addressInput.placeholder = '예: 너';
+    addressInput.value = charData.address;
+    addressInput.style.width = '100%';
+    addressInput.style.padding = '10px 12px';
+    addressInput.style.borderRadius = '8px';
+    addressInput.style.border = '1px solid rgba(148, 163, 184, 0.4)';
+    addressInput.style.backgroundColor = '#020617';
+    addressInput.style.color = '#f8fafc';
+
+    refs.address = addressInput;
+    addressField.appendChild(addressInput);
+
+    const speechWrap = document.createElement('div');
+    speechWrap.style.display = 'flex';
+    speechWrap.style.gap = '12px';
+    speechWrap.style.marginTop = '4px';
+
+    ['banmal', 'jondaemal'].forEach((value) => {
+      const label = document.createElement('label');
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '6px';
+      label.style.cursor = 'pointer';
+
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'gpi-wizard-speech-level';
+      input.value = value;
+      input.checked = charData.speechLevel === value;
+
+      label.appendChild(input);
+      label.append(value === 'banmal' ? '반말' : '존댓말');
+      speechWrap.appendChild(label);
+
+      refs.speechRadios.push(input);
+    });
+
+    addressField.appendChild(speechWrap);
+    section.appendChild(addressField);
+
+    // 이미지 코드
+    const imageField = document.createElement('div');
+    imageField.style.display = 'flex';
+    imageField.style.flexDirection = 'column';
+    imageField.style.gap = '6px';
+
+    const imageLabel = document.createElement('span');
+    imageLabel.textContent = '이미지 코드는? (알파벳 대문자 3글자)';
+    imageLabel.style.fontWeight = '500';
+    imageField.appendChild(imageLabel);
+
+    const imageInput = document.createElement('input');
+    imageInput.type = 'text';
+    imageInput.value = charData.imageCode;
+    imageInput.maxLength = 3;
+    imageInput.style.width = '120px';
+    imageInput.style.padding = '10px 12px';
+    imageInput.style.borderRadius = '8px';
+    imageInput.style.border = '1px solid rgba(148, 163, 184, 0.4)';
+    imageInput.style.backgroundColor = '#020617';
+    imageInput.style.color = '#f8fafc';
+    imageInput.addEventListener('input', () => {
+      imageInput.value = imageInput.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+      setFieldError(refs.imageError, '');
+    });
+
+    refs.imageCode = imageInput;
+    imageField.appendChild(imageInput);
+
+    const imageError = document.createElement('div');
+    imageError.style.fontSize = '12px';
+    imageError.style.color = '#f87171';
+    refs.imageError = imageError;
+    imageField.appendChild(imageError);
+
+    section.appendChild(imageField);
+
+    content.appendChild(section);
+
+    state.wizardFormRefs = { character: refs };
+  };
+
+  const renderPreviewStep = () => {
+    const content = state.wizardContent;
+    content.innerHTML = '';
+    resetWizardFormRefs();
+
+    state.wizardPreviewText = buildWizardPrompt();
+
+    const info = document.createElement('p');
+    info.textContent = '아래 내용이 에디터에 삽입됩니다. 수정이 필요하면 [수정] 버튼으로 돌아가세요.';
+    info.style.margin = '0';
+    info.style.fontSize = '13px';
+    info.style.color = 'rgba(226, 232, 240, 0.75)';
+
+    const preview = document.createElement('pre');
+    preview.textContent = state.wizardPreviewText;
+    preview.style.backgroundColor = '#020617';
+    preview.style.border = '1px solid rgba(148, 163, 184, 0.3)';
+    preview.style.borderRadius = '10px';
+    preview.style.padding = '16px';
+    preview.style.whiteSpace = 'pre-wrap';
+    preview.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+    preview.style.fontSize = '13px';
+    preview.style.color = '#f1f5f9';
+
+    content.appendChild(info);
+    content.appendChild(preview);
+  };
+
+  const renderCompleteStep = () => {
+    const content = state.wizardContent;
+    content.innerHTML = '';
+    resetWizardFormRefs();
+
+    const message = document.createElement('div');
+    message.style.display = 'flex';
+    message.style.flexDirection = 'column';
+    message.style.gap = '12px';
+    message.style.alignItems = 'flex-start';
+
+    const heading = document.createElement('h3');
+    heading.textContent = '✅ 프롬프트가 에디터에 삽입되었습니다!';
+    heading.style.margin = '0';
+    heading.style.fontSize = '16px';
+    heading.style.color = '#f8fafc';
+
+    const hint = document.createElement('p');
+    hint.textContent = '추가 인물(NPC)을 만들고 싶다면 Genit의 "키워드북" 기능을 활용해 보세요.';
+    hint.style.margin = '0';
+    hint.style.fontSize = '13px';
+    hint.style.color = 'rgba(226, 232, 240, 0.75)';
+
+    message.appendChild(heading);
+    message.appendChild(hint);
+
+    content.appendChild(message);
+  };
+
+  const commitWorldForm = () => {
+    const refs = state.wizardFormRefs?.world;
+    if (!refs) return true;
+    let valid = true;
+
+    const worldData = state.wizardData.world;
+
+    // Type
+    const selectedType = refs.typeRadios.find((radio) => radio.checked);
+    if (!selectedType) {
+      setFieldError(refs.typeError, '세계관 유형을 선택해주세요.');
+      valid = false;
+    } else {
+      worldData.typeOption = selectedType.value;
+      if (selectedType.value === 'custom') {
+        const customValue = refs.typeCustom?.value.trim() ?? '';
+        if (!customValue) {
+          setFieldError(refs.typeError, '직접 입력 값을 작성해주세요.');
+          valid = false;
+        } else {
+          worldData.typeCustom = customValue;
+        }
+      }
+    }
+
+    // Special rules
+    worldData.specialRules = refs.specialRules?.value ?? '';
+
+    // Player role
+    const selectedRole = refs.playerRadios.find((radio) => radio.checked);
+    if (!selectedRole) {
+      setFieldError(refs.playerError, '플레이어 설정을 선택해주세요.');
+      valid = false;
+    } else {
+      worldData.playerRoleOption = selectedRole.value;
+      if (selectedRole.value === 'custom') {
+        const customRole = refs.playerCustom?.value.trim() ?? '';
+        if (!customRole) {
+          setFieldError(refs.playerError, '직접 입력 값을 작성해주세요.');
+          valid = false;
+        } else {
+          worldData.playerRoleCustom = customRole;
+        }
+      }
+    }
+
+    // Locations
+    const locationsValueRaw = refs.locations?.value ?? '';
+    const locationsList = locationsValueRaw
+      .split(',')
+      .map((loc) => loc.trim())
+      .filter(Boolean);
+
+    if (!locationsList.length) {
+      setFieldError(refs.locationsError, '최소 한 개 이상의 장소를 입력해주세요.');
+      valid = false;
+    } else {
+      const normalized = locationsList.join(', ');
+      worldData.locations = normalized;
+      if (refs.locations) {
+        refs.locations.value = normalized;
+      }
+    }
+
+    return valid;
+  };
+
+  const commitCharacterForm = () => {
+    const refs = state.wizardFormRefs?.character;
+    if (!refs) return true;
+    let valid = true;
+    const charData = state.wizardData.character;
+
+    const nameValue = refs.name?.value.trim() ?? '';
+    if (!nameValue) {
+      setFieldError(refs.nameError, '인물 이름을 입력해주세요.');
+      valid = false;
+    } else {
+      charData.name = nameValue;
+    }
+
+    const selectedRole = refs.roleRadios.find((radio) => radio.checked);
+    if (!selectedRole) {
+      setFieldError(refs.roleError, '역할/직책을 선택해주세요.');
+      valid = false;
+    } else {
+      charData.roleOption = selectedRole.value;
+      if (selectedRole.value === 'custom') {
+        const customRole = refs.roleCustom?.value.trim() ?? '';
+        if (!customRole) {
+          setFieldError(refs.roleError, '직접 입력 값을 작성해주세요.');
+          valid = false;
+        } else {
+          charData.roleCustom = customRole;
+        }
+      }
+    }
+
+    const traitsValueRaw = refs.traits?.value ?? '';
+    const traitsList = traitsValueRaw
+      .split(',')
+      .map((trait) => trait.trim())
+      .filter(Boolean);
+    if (!traitsList.length) {
+      setFieldError(refs.traitsError, '최소 한 개 이상의 성격/특징을 입력해주세요.');
+      valid = false;
+    } else {
+      const normalizedTraits = traitsList.join(', ');
+      charData.traits = normalizedTraits;
+      if (refs.traits) {
+        refs.traits.value = normalizedTraits;
+      }
+    }
+
+    const addressValue = refs.address?.value.trim() || '너';
+    charData.address = addressValue;
+    if (refs.address) {
+      refs.address.value = addressValue;
+    }
+
+    const selectedSpeech = refs.speechRadios.find((radio) => radio.checked);
+    if (selectedSpeech) {
+      charData.speechLevel = selectedSpeech.value;
+    }
+
+    const imageValue = refs.imageCode?.value.trim().toUpperCase() ?? '';
+    if (!/^[A-Z]{3}$/.test(imageValue)) {
+      setFieldError(refs.imageError, '대문자 3글자로 입력해주세요 (예: AAA).');
+      valid = false;
+    } else {
+      charData.imageCode = imageValue;
+    }
+
+    return valid;
+  };
+
+  const updateWizardFooter = () => {
+    if (!state.wizardFooter) return;
+    const footer = state.wizardFooter;
+    footer.innerHTML = '';
+
+    const step = state.wizardStep;
+
+    const leftGroup = document.createElement('div');
+    leftGroup.style.display = 'flex';
+    leftGroup.style.gap = '8px';
+
+    const rightGroup = document.createElement('div');
+    rightGroup.style.display = 'flex';
+    rightGroup.style.gap = '8px';
+
+    const makeButton = (label, variant = 'secondary') => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.style.padding = '10px 18px';
+      button.style.borderRadius = '8px';
+      button.style.border = 'none';
+      button.style.fontSize = '14px';
+      button.style.fontWeight = '600';
+      button.style.cursor = 'pointer';
+      button.style.transition = 'filter 180ms ease';
+      if (variant === 'primary') {
+        button.style.backgroundColor = '#38bdf8';
+        button.style.color = '#0f172a';
+      } else if (variant === 'success') {
+        button.style.backgroundColor = '#10b981';
+        button.style.color = '#0f172a';
+      } else {
+        button.style.backgroundColor = 'rgba(148, 163, 184, 0.2)';
+        button.style.color = '#f8fafc';
+      }
+      button.addEventListener('mouseenter', () => {
+        button.style.filter = 'brightness(1.1)';
+      });
+      button.addEventListener('mouseleave', () => {
+        button.style.filter = 'none';
+      });
+      return button;
+    };
+
+    if (step === 1) {
+      const cancelButton = makeButton('닫기');
+      cancelButton.addEventListener('click', () => closeWizard());
+      leftGroup.appendChild(cancelButton);
+
+      const nextButton = makeButton('다음 →', 'primary');
+      nextButton.addEventListener('click', () => {
+        if (commitWorldForm()) {
+          state.wizardStep = 2;
+          renderWizardStep();
+        }
+      });
+      rightGroup.appendChild(nextButton);
+    } else if (step === 2) {
+      const prevButton = makeButton('← 이전');
+      prevButton.addEventListener('click', () => {
+        state.wizardStep = 1;
+        renderWizardStep();
+      });
+      leftGroup.appendChild(prevButton);
+
+      const nextButton = makeButton('미리보기 →', 'primary');
+      nextButton.addEventListener('click', () => {
+        if (commitCharacterForm()) {
+          state.wizardStep = 3;
+          renderWizardStep();
+        }
+      });
+      rightGroup.appendChild(nextButton);
+    } else if (step === 3) {
+      const prevButton = makeButton('← 수정');
+      prevButton.addEventListener('click', () => {
+        state.wizardStep = 2;
+        renderWizardStep();
+      });
+      leftGroup.appendChild(prevButton);
+
+      const createButton = makeButton('생성하기', 'success');
+      createButton.addEventListener('click', () => {
+        applyWizardPrompt();
+      });
+      rightGroup.appendChild(createButton);
+    } else {
+      const closeButton = makeButton('완료');
+      closeButton.addEventListener('click', () => {
+        closeWizard();
+      });
+      rightGroup.appendChild(closeButton);
+    }
+
+    footer.appendChild(leftGroup);
+    footer.appendChild(rightGroup);
+  };
+
+  const renderWizardStep = () => {
+    ensureWizardStructure();
+    if (!state.wizardOverlay) return;
+
+    const step = state.wizardStep;
+    const labelText = step === 1 ? '1 / 3 단계'
+      : step === 2 ? '2 / 3 단계'
+      : step === 3 ? '미리보기'
+      : '완료';
+
+    if (state.wizardStepLabel) {
+      state.wizardStepLabel.textContent = labelText;
+    }
+
+    switch (step) {
+      case 1:
+        renderWorldStep();
+        break;
+      case 2:
+        renderCharacterStep();
+        break;
+      case 3:
+        renderPreviewStep();
+        break;
+      default:
+        renderCompleteStep();
+        break;
+    }
+
+    updateWizardFooter();
+
+    window.requestAnimationFrame(() => {
+      state.wizardContent?.scrollTo({ top: 0, behavior: 'auto' });
+    });
+  };
+
+  const applyWizardPrompt = () => {
+    const finalPrompt = buildWizardPrompt();
+    if (!state.textarea) return;
+
+    runProgrammaticChange(() => {
+      setNativeValue(state.textarea, `${finalPrompt}\n`);
+      const cursor = state.textarea.value.length;
+      state.textarea.setSelectionRange(cursor, cursor);
+      dispatchReactInputEvents(state.textarea);
+    });
+
+    scanInsertedBlocks();
+    updateTextareaLayout();
+
+    state.wizardStep = 4;
+    renderWizardStep();
   };
 
   const getEditorBounds = () => {
@@ -587,11 +1734,42 @@
     templateBar.style.backgroundColor = '#1e293b';
     templateBar.style.borderBottom = '1px solid rgba(148, 163, 184, 0.25)';
 
+    const templateHeaderRow = document.createElement('div');
+    templateHeaderRow.style.display = 'flex';
+    templateHeaderRow.style.alignItems = 'center';
+    templateHeaderRow.style.justifyContent = 'space-between';
+
     const templateTitle = document.createElement('div');
     templateTitle.textContent = '🧩 템플릿 블록';
     templateTitle.style.fontSize = '13px';
     templateTitle.style.fontWeight = '600';
     templateTitle.style.color = 'rgba(226, 232, 240, 0.75)';
+
+    const wizardButton = document.createElement('button');
+    wizardButton.type = 'button';
+    wizardButton.textContent = '🧙 마법사로 만들기';
+    wizardButton.style.border = 'none';
+    wizardButton.style.borderRadius = '8px';
+    wizardButton.style.padding = '8px 14px';
+    wizardButton.style.fontSize = '13px';
+    wizardButton.style.fontWeight = '600';
+    wizardButton.style.backgroundColor = '#10b981';
+    wizardButton.style.color = '#0f172a';
+    wizardButton.style.cursor = 'pointer';
+    wizardButton.style.transition = 'filter 180ms ease';
+    wizardButton.title = '질문에 답하면 프롬프트가 자동으로 만들어집니다';
+    wizardButton.addEventListener('mouseenter', () => {
+      wizardButton.style.filter = 'brightness(1.1)';
+    });
+    wizardButton.addEventListener('mouseleave', () => {
+      wizardButton.style.filter = 'none';
+    });
+    wizardButton.addEventListener('click', () => {
+      openWizard();
+    });
+
+    templateHeaderRow.appendChild(templateTitle);
+    templateHeaderRow.appendChild(wizardButton);
 
     const templateButtonsWrap = document.createElement('div');
     templateButtonsWrap.style.display = 'flex';
@@ -640,7 +1818,7 @@
         templateButtonsWrap.appendChild(button);
       });
 
-    templateBar.appendChild(templateTitle);
+    templateBar.appendChild(templateHeaderRow);
     templateBar.appendChild(templateButtonsWrap);
 
     const editorBody = document.createElement('div');
@@ -814,6 +1992,9 @@
     if (!state.overlay || !state.editor) return;
     if (state.isFullscreen) {
       exitFullscreen();
+    }
+    if (state.wizardActive) {
+      closeWizard();
     }
     const bounds = getEditorBounds();
     state.overlay.style.display = 'none';
@@ -998,9 +2179,16 @@
   };
 
   const onKeydown = (event) => {
-    if (event.key === 'Escape' && state.isFullscreen) {
-      event.preventDefault();
-      exitFullscreen();
+    if (event.key === 'Escape') {
+      if (state.wizardActive) {
+        event.preventDefault();
+        closeWizard();
+        return;
+      }
+      if (state.isFullscreen) {
+        event.preventDefault();
+        exitFullscreen();
+      }
     }
   };
 

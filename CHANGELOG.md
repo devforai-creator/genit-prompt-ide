@@ -9,18 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned - Milestone 4 (v1.0)
-- 프롬프트 마법사 (Wizard)
-  - Phase 1: 세계관 설정 (4개 질문)
-  - Phase 2: 핵심 인물 (메인 캐릭터 1명, 5개 질문)
-  - 템플릿 엔진 (M3 블록 자동 포함)
-  - 미리보기 및 생성
-  - NPC 가이드 (Genit 키워드북 활용 안내)
-
 ### Planned - Milestone 5+
 - 문법 하이라이팅
 - 변수 치환 시스템
 - Import/Export 기능
+
+---
+
+## [1.0.0] - 2025-10-04
+
+### Added - 프롬프트 마법사 (Milestone 4) 🎉 **v1.0 달성**
+- 🧙 **프롬프트 마법사**: 문답 형식으로 완성도 높은 프롬프트 자동 생성
+- 📋 **Phase 1 - 세계관 설정**: 4개 질문 (유형, 특별 규칙, 플레이어 설정, 주요 장소)
+- 👤 **Phase 2 - 핵심 인물**: 5개 질문 (이름, 역할, 성격, 호칭/말투, 이미지 코드)
+- 🔮 **템플릿 엔진**: M3 블록 자동 포함 (윤리, 시스템, 출력, 이미지 규칙)
+- 👁️ **미리보기**: 생성될 프롬프트 전체 확인
+- 💡 **NPC 가이드**: 완료 화면에서 Genit 키워드북 활용 안내
+- 🎨 **즉시 입력**: "직접 입력" 선택 시 텍스트 필드 즉시 표시
+- ✅ **인라인 validation**: 이미지 코드 실시간 형식 검증
+- 🔄 **M3 동기화**: 템플릿 버튼 상태 자동 동기화
+- ⌨️ **ESC 키 지원**: Wizard 닫기 (전체화면 핸들러와 충돌 방지)
+
+### Changed
+- 헤더에 "🧙 마법사로 만들기" 버튼 추가
+- Wizard 모달 z-index: 2147483648 (에디터보다 위)
+- 버전 0.3.0 → 1.0.0
+
+### Technical Details
+- `state.wizardActive`, `wizardStep`, `wizardData` 상태 추가
+- `buildWizardPrompt()` 템플릿 엔진 함수
+- `defaultWizardData()` 기본값 구조
+- Phase별 폼 렌더링 (`renderPhase1Form`, `renderPhase2Form`, `renderPreview`)
+- M3 헬퍼 재사용 (`scanAndUpdateButtonStates`)
+- `state.programmaticChange` 플래그로 debounced scanner 중복 실행 방지
+
+### UX Improvements
+- 단계별 진행 표시 (1/2, 2/2, 미리보기)
+- 라디오 버튼 + 커스텀 입력 즉시 전환
+- 필수 입력 누락 시 인라인 에러 표시
+- [← 이전] [다음 →] [미리보기] [생성하기] 네비게이션
+- 완료 화면에 키워드북 예시 제공
 
 ---
 
@@ -136,7 +164,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/devforai-creator/genit-prompt-ide/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/devforai-creator/genit-prompt-ide/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v1.0.0
 [0.3.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.3.0
 [0.2.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.2.0
 [0.1.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.1.0
