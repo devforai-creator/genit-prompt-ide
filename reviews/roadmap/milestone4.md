@@ -91,8 +91,9 @@ Genit의 "키워드북" 기능을 활용하세요.
   wizardModal.style.maxHeight = '80vh';
   wizardModal.style.backgroundColor = '#0f172a';
   wizardModal.style.borderRadius = '12px';
-  wizardModal.style.zIndex = '2147483648'; // 에디터보다 위
+  wizardModal.style.zIndex = '2147483648'; // 에디터보다 위 (에디터: 2147483647)
   ```
+  - **주의**: 에디터 오버레이와 z-index 스택 충돌 방지
 
 - [ ] 헤더
   - 타이틀: "🧙 프롬프트 마법사"
@@ -112,6 +113,12 @@ Genit의 "키워드북" 기능을 활용하세요.
 - [ ] [다음] 클릭 → validation 후 step++
 - [ ] [이전] 클릭 → step--
 - [ ] 각 step별로 다른 폼 렌더링
+
+#### 1-4. ESC 키 처리
+- [ ] 마법사 오픈 시 에디터의 전체화면 ESC 핸들러 임시 비활성화
+- [ ] 마법사에서 ESC 키 → wizard만 닫기 (에디터는 유지)
+- [ ] 마법사 닫을 때 에디터 ESC 핸들러 복원
+- **주의**: 기존 전체화면 ESC 핸들러와 충돌 방지
 
 ### 예상 시간
 3 ~ 4시간
@@ -145,7 +152,7 @@ Genit의 "키워드북" 기능을 활용하세요.
     직접 입력
   </label>
   ```
-- [ ] "직접 입력" 선택 시 textarea 표시
+- [ ] "직접 입력" 선택 시 textarea **즉시 표시** (추가 단계 없이)
   - placeholder: "예: 사이버펑크 미래의 뒷골목"
 
 #### 2-2. Q2: 특별한 규칙 (textarea, 선택)
@@ -161,7 +168,7 @@ Genit의 "키워드북" 기능을 활용하세요.
   [ ] 특별한 능력을 숨기고 있음
   [ ] 직접 입력
   ```
-- [ ] "직접 입력" 선택 시 input 표시
+- [ ] "직접 입력" 선택 시 input **즉시 표시** (추가 단계 없이)
 
 #### 2-4. Q4: 주요 장소 (input)
 - [ ] 텍스트 입력
@@ -199,7 +206,7 @@ Genit의 "키워드북" 기능을 활용하세요.
   [ ] 동료
   [ ] 직접 입력
   ```
-- [ ] "직접 입력" 선택 시 input 표시
+- [ ] "직접 입력" 선택 시 input **즉시 표시** (추가 단계 없이)
 
 #### 3-3. Q3: 성격/특징 (input, 필수)
 - [ ] 텍스트 입력 (쉼표 구분)
@@ -220,7 +227,8 @@ Genit의 "키워드북" 기능을 활용하세요.
   - maxlength: 3
   - pattern: `[A-Z]{3}`
   - placeholder: "AAA"
-  - 설명: "알파벳 대문자 3글자 (예: AAA, LYS)" (Codex 피드백)
+  - 설명: "알파벳 대문자 3글자 (예: AAA, LYS)"
+  - **인라인 validation**: 입력 중 실시간으로 형식 검증 (M3 블록 제약 조건 재사용)
 
 #### 3-6. Validation
 - [ ] 모든 필드 필수
@@ -380,9 +388,13 @@ ${data.world.locations.join(' | ')}`;
     dispatchReactInputEvents(state.textarea);
   });
 
+  // M3 블록 헬퍼 재사용하여 템플릿 버튼 상태 동기화
+  scanAndUpdateButtonStates(); // insertBlock, state.insertedBlocks 활용
+
   hideWizard();
   state.textarea.focus();
   ```
+  - **주의**: `state.programmaticChange` 플래그 재사용으로 debounced scanner 중복 실행 방지
 
 #### 6-2. 완료 화면 (선택)
 - [ ] 모달 내용을 완료 메시지로 교체
@@ -558,6 +570,41 @@ ${data.world.locations.join(' | ')}`;
 
 ---
 
+## 구현 시 주의사항 (Codex 피드백)
+
+### 1. Z-index 스택 관리
+- **Wizard z-index**: `2147483648` (에디터보다 위)
+- **에디터 z-index**: `2147483647`
+- 오버레이 간 충돌 방지를 위해 스택 순서 유지
+
+### 2. "직접 입력" 옵션 UX
+- 라디오 버튼 "직접 입력" 선택 시 **즉시** 텍스트 필드 표시
+- 추가 클릭이나 단계 없이 매끄러운 흐름 유지
+- Phase 1 Q1, Q3, Phase 2 Q2 모두 동일 패턴 적용
+
+### 3. 이미지 코드 validation
+- 기존 M3 블록 제약 조건 재사용 (대문자 3글자)
+- **인라인 validation**: 입력 중 실시간 형식 검증
+- 에러 표시 일관성 유지
+
+### 4. M3 블록 헬퍼 재사용
+- 프롬프트 생성 시 `insertBlock`, `state.insertedBlocks` 활용
+- 템플릿 버튼 상태 자동 동기화 (파란색 하이라이트)
+- 사용자가 생성 후 템플릿 바를 볼 때 일관된 상태 표시
+
+### 5. State 플래그 재사용
+- `state.programmaticChange` 플래그로 wizard 업데이트 감지
+- debounced scanner 중복 실행 방지
+- 성능 최적화 및 불필요한 scan 제거
+
+### 6. ESC 키 충돌 방지
+- 에디터의 전체화면 ESC 핸들러와 충돌 방지
+- Wizard 오픈 시: 에디터 ESC 핸들러 임시 비활성화
+- Wizard 닫을 때: 에디터 ESC 핸들러 복원
+- ESC 키는 항상 가장 최상위 모달(wizard)만 닫음
+
+---
+
 ## 다음 마일스톤 (M5) 후보
 
 - 여러 인물 추가 (Phase 2 반복)
@@ -570,4 +617,7 @@ ${data.world.locations.join(' | ')}`;
 ---
 
 **작성일**: 2025-10-04
-**피드백 반영**: Gemini의 세계관 중심 접근, Codex의 UX 디테일
+**피드백 반영**:
+- Gemini: 세계관 중심 접근, Phase 구조
+- Codex (초안): UX 디테일, 프리셋 선택, INFO 연결, 제약 조건 안내
+- Codex (구현): z-index 스택, 직접 입력 UX, M3 헬퍼 재사용, ESC 충돌 방지
