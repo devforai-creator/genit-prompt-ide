@@ -4,6 +4,8 @@
 
 Genit에서 복잡하고 긴 시스템 프롬프트를 효율적으로 작성하고 관리할 수 있는 Tampermonkey 스크립트입니다.
 
+**[📥 설치하기 (클릭)](https://github.com/devforai-creator/genit-prompt-ide/raw/main/src/gpi.user.js)** | [📖 사용 가이드](#-사용-방법) | [📝 변경 이력](./CHANGELOG.md)
+
 ---
 
 ## 🎯 주요 기능
@@ -50,11 +52,11 @@ Genit에서 복잡하고 긴 시스템 프롬프트를 효율적으로 작성하
 - [Edge](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd)
 
 ### 2. 스크립트 설치
-1. [`src/gpi.user.js`](./src/gpi.user.js) 파일의 내용을 복사
-2. Tampermonkey 대시보드 열기
-3. "새 스크립트 만들기" 클릭
-4. 복사한 내용 붙여넣기
-5. 저장 (Ctrl+S)
+
+**[📥 클릭하여 설치](https://github.com/devforai-creator/genit-prompt-ide/raw/main/src/gpi.user.js)**
+
+위 링크를 클릭하면 Tampermonkey가 자동으로 설치 대화상자를 표시합니다.
+"Install" 버튼만 클릭하면 완료!
 
 ### 3. 사용 시작
 https://genit.ai 페이지로 이동하면 자동으로 활성화됩니다.
