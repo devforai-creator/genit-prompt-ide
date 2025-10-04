@@ -18,6 +18,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] - 2025-10-04
+
+### Added - 에디터 UX 대폭 개선 (Milestone 2)
+- 📏 **반응형 크기**: 화면 크기에 따라 자동 조절 (85vw × 85vh, 최대 1600px × 95vh)
+- 📐 **크기 조절 핸들**: 우하단 드래그로 자유롭게 크기 조절
+- 💾 **크기/위치 저장**: 사용자가 조절한 크기와 위치를 자동 저장 및 복원
+  - `GM_setValue`/`GM_getValue` 활용
+  - 페이지 새로고침 후에도 유지
+  - 화면 밖 위치 자동 보정
+- ⛶ **전체화면 모드**: 원클릭으로 100vw × 100vh 전체화면 전환
+  - 헤더에 전체화면 버튼 추가
+  - ESC 키로 전체화면 해제
+  - 전체화면 상태 시각적 표시 (버튼 하이라이트)
+- 🪟 **윈도우 리사이즈 대응**: 브라우저 창 크기 변경 시 에디터 자동 조정
+- ⌨️ **개선된 포커스 관리**: 크기 조절/전체화면 전환 시에도 포커스 유지
+- 🔒 **최소/최대 크기 제한**: 480px × 320px ~ 1600px × 95vh
+
+### Changed
+- 메타데이터에 `@grant GM_setValue`, `@grant GM_getValue` 추가
+- 기본 크기를 화면 크기의 85%로 변경 (기존: 720px 고정)
+- 오버레이 클릭 시 드래그/리사이즈 중에는 닫히지 않도록 개선
+
+### Technical Details
+- 드래그 중 `user-select: none` 적용으로 텍스트 선택 방지
+- `clampBounds()` 함수로 모든 크기/위치 값 검증
+- `updateTextareaLayout()` 자동 호출로 내부 textarea 크기 동기화
+- 전체화면 전환 시 이전 상태 저장 및 복원
+
+### Fixed
+- 작은 화면에서 에디터가 잘리는 문제 해결 (minHeight 360px)
+- 에디터 위치가 화면 밖으로 나가는 문제 방지
+
+---
+
 ## [0.1.0] - 2025-10-04
 
 ### Added
@@ -59,6 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/yourusername/genit-prompt-ide/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/yourusername/genit-prompt-ide/releases/tag/v0.1.0
-[0.0.0]: https://github.com/yourusername/genit-prompt-ide/releases/tag/v0.0.0
+[Unreleased]: https://github.com/devforai-creator/genit-prompt-ide/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.2.0
+[0.1.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.1.0
+[0.0.0]: https://github.com/devforai-creator/genit-prompt-ide/releases/tag/v0.0.0
