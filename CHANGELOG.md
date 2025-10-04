@@ -9,8 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned
-- 프롬프트 마법사 (Wizard) - 문답 형식으로 프롬프트 생성
+### Planned - Milestone 4 (v1.0)
+- 프롬프트 마법사 (Wizard)
+  - Phase 1: 세계관 설정 (4개 질문)
+  - Phase 2: 핵심 인물 (메인 캐릭터 1명, 5개 질문)
+  - 템플릿 엔진 (M3 블록 자동 포함)
+  - 미리보기 및 생성
+  - NPC 가이드 (Genit 키워드북 활용 안내)
+
+### Planned - Milestone 5+
 - 문법 하이라이팅
 - 변수 치환 시스템
 - Import/Export 기능
