@@ -1694,11 +1694,10 @@ ${locationLine}
     overlay.style.display = 'none';
     overlay.addEventListener('click', (evt) => {
       if (evt.target !== overlay) return;
-      if (state.dragAnchor || state.resizeAnchor || state.suppressOverlayClose) {
-        state.suppressOverlayClose = false;
-        return;
-      }
-      requestCloseEditor();
+      // Do not close on overlay click to avoid accidental data loss.
+      // Give focus back to the editor instead.
+      if (state.dragAnchor || state.resizeAnchor) return;
+      state.textarea?.focus?.({ preventScroll: false });
     });
 
     document.body.appendChild(overlay);
