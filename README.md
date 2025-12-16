@@ -64,6 +64,8 @@ Genit에서 복잡하고 긴 시스템 프롬프트를 효율적으로 작성하
 
 설치 후 동작하지 않으면 먼저 [`⚡ 안 될 때 1분 체크리스트`](#-안-될-때-1분-체크리스트)를 확인하세요.
 
+> Tampermonkey는 보통 **자동 업데이트**를 지원합니다(업데이트 주기는 브라우저/설정에 따라 다를 수 있음). 업데이트가 필요하면 설치 링크를 다시 눌러 재설치해도 됩니다.
+
 ### 1. Tampermonkey 설치
 브라우저에 Tampermonkey 확장 프로그램을 설치하세요:
 - [Chrome](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo)

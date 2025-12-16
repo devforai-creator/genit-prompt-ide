@@ -1,10 +1,14 @@
 // ==UserScript==
 // @name         Genit Prompt IDE
 // @namespace    https://genit-prompt-ide.local
-// @version      1.0.0
+// @version      1.1.0
 // @description  Prompt editor with one-click template blocks for Genit character creation.
 // @author       Codex
 // @match        https://genit.ai/*
+// @homepageURL  https://github.com/devforai-creator/genit-prompt-ide
+// @supportURL   https://github.com/devforai-creator/genit-prompt-ide/issues
+// @downloadURL  https://github.com/devforai-creator/genit-prompt-ide/raw/main/src/gpi.user.js
+// @updateURL    https://github.com/devforai-creator/genit-prompt-ide/raw/main/src/gpi.user.js
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-idle
