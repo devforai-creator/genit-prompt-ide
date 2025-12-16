@@ -257,6 +257,7 @@
     overlay: null,
     editor: null,
     textarea: null,
+    editorOriginalValue: '',
     dragAnchor: null,
     openHandler: null,
     header: null,
@@ -1697,7 +1698,7 @@ ${locationLine}
         state.suppressOverlayClose = false;
         return;
       }
-      hideEditor();
+      requestCloseEditor();
     });
 
     document.body.appendChild(overlay);
@@ -1785,7 +1786,7 @@ ${locationLine}
     closeButton.style.fontSize = '20px';
     closeButton.style.lineHeight = '1';
     closeButton.style.cursor = 'pointer';
-    closeButton.addEventListener('click', hideEditor);
+    closeButton.addEventListener('click', requestCloseEditor);
 
     header.addEventListener('mousedown', (event) => {
       startDrag(event, container);
@@ -1959,7 +1960,7 @@ ${locationLine}
       'rgba(148, 163, 184, 0.2)',
       '#e2e8f0'
     );
-    cancelButton.addEventListener('click', hideEditor);
+    cancelButton.addEventListener('click', requestCloseEditor);
 
     const applyButton = createButton(
       BUTTON_APPLY_ID,
@@ -2043,6 +2044,7 @@ ${locationLine}
 
     ensureEditorBounds();
     state.textarea.value = state.promptEl.value;
+    state.editorOriginalValue = state.textarea.value;
     state.overlay.style.display = 'block';
     state.editor.style.display = 'flex';
     updateTextareaLayout();
@@ -2057,6 +2059,19 @@ ${locationLine}
         state.textarea.value.length
       );
     });
+  };
+
+  const hasUnsavedEditorChanges = () => {
+    if (!state.textarea) return false;
+    return state.textarea.value !== (state.editorOriginalValue ?? '');
+  };
+
+  const requestCloseEditor = () => {
+    if (hasUnsavedEditorChanges()) {
+      const ok = window.confirm('변경사항이 저장되지 않았습니다. 정말 취소하시겠습니까?');
+      if (!ok) return;
+    }
+    hideEditor();
   };
 
   const hideEditor = () => {
@@ -2080,6 +2095,7 @@ ${locationLine}
     document.removeEventListener('keydown', onKeydown, true);
     window.removeEventListener('resize', onWindowResize);
     persistEditorState(bounds);
+    state.editorOriginalValue = '';
   };
 
   const startDrag = (event, container) => {
