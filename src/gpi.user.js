@@ -113,6 +113,66 @@
 편의점 | 골목 | 동네 돌아다니기 | PC방 | 노래방 | 오락실
 <!-- GPI:infoTemplate:end -->`,
     },
+    {
+      id: 'placesEvents',
+      name: '장소/이벤트',
+      icon: '📍',
+      category: 'structure',
+      order: 6,
+      description: '장소별 이벤트/트리거 설계 템플릿',
+      content: String.raw`<!-- GPI:placesEvents:start -->
+# 장소 / 이벤트 설계
+
+## 장소 목록
+- [ ] 장소 1:
+- [ ] 장소 2:
+- [ ] 장소 3:
+
+## 장소별 이벤트(트리거/결과)
+- 장소 1
+  - 트리거: (예: U가 처음 방문 / 특정 시간 / 특정 아이템)
+  - 이벤트: (무슨 일이 일어남)
+  - 결과: (관계/상태/아이템/정보 변화)
+- 장소 2
+  - 트리거:
+  - 이벤트:
+  - 결과:
+
+## 반복 이벤트/랜덤 이벤트
+- 반복: (예: 매일 아침, 주말, 비 오는 날)
+- 랜덤: (예: 확률 20%로 발생)
+<!-- GPI:placesEvents:end -->`,
+    },
+    {
+      id: 'statsSystem',
+      name: '수치 시스템',
+      icon: '📊',
+      category: 'structure',
+      order: 7,
+      description: '스탯/상태/호감도 등 수치 템플릿',
+      content: String.raw`<!-- GPI:statsSystem:start -->
+# 수치 시스템
+
+## 핵심 수치(0~100)
+- ❤️ 호감도: 0
+- 💗 친밀도: 0
+- ⚡ 기력: 100
+
+## 상태(토글)
+- [ ] 부상
+- [ ] 피로
+- [ ] 긴장
+- [ ] 중독
+
+## 변화 규칙(예시)
+- 좋은 선택 +5~+15 / 나쁜 선택 -5~-15
+- 임계점: 20/50/80에서 이벤트/대사 변화
+- 기력 0이면: 행동 제한/강제 휴식
+
+## INFO 반영 예시
+- INFO의 “감정/수치/행동” 칸에 위 수치를 반영해서 출력
+<!-- GPI:statsSystem:end -->`,
+    },
   ];
 
   const getTemplateContent = (id) => {
@@ -504,6 +564,9 @@ ${locationLine}
 
     return sections.filter(Boolean).join('\n\n').trim();
   };
+
+  const normalizeImageCode = (value) => value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+  const isValidImageCode = (value) => /^(?:[A-Z]{3}|[0-9]{3})$/.test(value);
 
   const ensureWizardStructure = () => {
     if (state.wizardOverlay) return;
@@ -1116,7 +1179,7 @@ ${locationLine}
     imageField.style.gap = '6px';
 
     const imageLabel = document.createElement('span');
-    imageLabel.textContent = '이미지 코드는? (알파벳 대문자 3글자)';
+    imageLabel.textContent = '이미지 코드는? (대문자 3글자 또는 숫자 3글자)';
     imageLabel.style.fontWeight = '500';
     imageField.appendChild(imageLabel);
 
@@ -1131,7 +1194,7 @@ ${locationLine}
     imageInput.style.backgroundColor = '#020617';
     imageInput.style.color = '#f8fafc';
     imageInput.addEventListener('input', () => {
-      imageInput.value = imageInput.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+      imageInput.value = normalizeImageCode(imageInput.value);
       setFieldError(refs.imageError, '');
     });
 
@@ -1334,11 +1397,15 @@ ${locationLine}
     }
 
     const imageValue = refs.imageCode?.value.trim().toUpperCase() ?? '';
-    if (!/^[A-Z]{3}$/.test(imageValue)) {
-      setFieldError(refs.imageError, '대문자 3글자로 입력해주세요 (예: AAA).');
+    const normalizedImageValue = normalizeImageCode(imageValue);
+    if (!isValidImageCode(normalizedImageValue)) {
+      setFieldError(refs.imageError, '대문자 3글자 또는 숫자 3글자로 입력해주세요 (예: AAA / 123).');
       valid = false;
     } else {
-      charData.imageCode = imageValue;
+      charData.imageCode = normalizedImageValue;
+      if (refs.imageCode) {
+        refs.imageCode.value = normalizedImageValue;
+      }
     }
 
     return valid;
