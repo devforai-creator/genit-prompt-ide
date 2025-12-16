@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genit Prompt IDE
 // @namespace    https://genit-prompt-ide.local
-// @version      1.1.1
+// @version      1.1.2
 // @description  Prompt editor with one-click template blocks for Genit character creation.
 // @author       Codex
 // @match        https://genit.ai/*
@@ -282,6 +282,8 @@
     wizardData: defaultWizardData(),
     wizardPreviewText: '',
     wizardFormRefs: null,
+    wizardIncludePlacesEvents: false,
+    wizardIncludeStatsSystem: false,
   };
 
   const loadEditorState = () => {
@@ -565,6 +567,20 @@ ${locationLine}
       sections.push(`#캐릭터코드\n${character.name}=${imageCode}_`);
     }
 
+    if (state.wizardIncludePlacesEvents) {
+      const content = getTemplateContent('placesEvents');
+      if (content) {
+        sections.push(content);
+      }
+    }
+
+    if (state.wizardIncludeStatsSystem) {
+      const content = getTemplateContent('statsSystem');
+      if (content) {
+        sections.push(content);
+      }
+    }
+
     sections.push(buildInfoBlock(locations));
 
     return sections.filter(Boolean).join('\n\n').trim();
@@ -705,6 +721,8 @@ ${locationLine}
     state.wizardModal.style.display = 'flex';
     state.wizardActive = true;
     state.wizardStep = 1;
+    state.wizardIncludePlacesEvents = false;
+    state.wizardIncludeStatsSystem = false;
     if (!state.wizardData) {
       state.wizardData = defaultWizardData();
     }
@@ -1232,6 +1250,40 @@ ${locationLine}
     info.style.fontSize = '13px';
     info.style.color = 'rgba(226, 232, 240, 0.75)';
 
+    const options = document.createElement('div');
+    options.style.display = 'flex';
+    options.style.flexWrap = 'wrap';
+    options.style.gap = '10px 14px';
+    options.style.padding = '10px 12px';
+    options.style.border = '1px solid rgba(148, 163, 184, 0.25)';
+    options.style.borderRadius = '10px';
+    options.style.backgroundColor = 'rgba(2, 6, 23, 0.55)';
+
+    const makeCheckbox = (labelText, checked, onChange) => {
+      const label = document.createElement('label');
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '8px';
+      label.style.cursor = 'pointer';
+      label.style.userSelect = 'none';
+
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = checked;
+      input.addEventListener('change', () => {
+        onChange(input.checked);
+      });
+
+      const text = document.createElement('span');
+      text.textContent = labelText;
+      text.style.fontSize = '13px';
+      text.style.color = '#e2e8f0';
+
+      label.appendChild(input);
+      label.appendChild(text);
+      return label;
+    };
+
     const preview = document.createElement('pre');
     preview.textContent = state.wizardPreviewText;
     preview.style.backgroundColor = '#020617';
@@ -1243,7 +1295,23 @@ ${locationLine}
     preview.style.fontSize = '13px';
     preview.style.color = '#f1f5f9';
 
+    const refreshPreview = () => {
+      state.wizardPreviewText = buildWizardPrompt();
+      preview.textContent = state.wizardPreviewText;
+    };
+
+    options.appendChild(makeCheckbox('📍 장소/이벤트 템플릿 포함', state.wizardIncludePlacesEvents, (value) => {
+      state.wizardIncludePlacesEvents = value;
+      refreshPreview();
+    }));
+
+    options.appendChild(makeCheckbox('📊 수치 시스템 템플릿 포함', state.wizardIncludeStatsSystem, (value) => {
+      state.wizardIncludeStatsSystem = value;
+      refreshPreview();
+    }));
+
     content.appendChild(info);
+    content.appendChild(options);
     content.appendChild(preview);
   };
 
