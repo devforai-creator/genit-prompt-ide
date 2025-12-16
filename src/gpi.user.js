@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Genit Prompt IDE
 // @namespace    https://genit-prompt-ide.local
-// @version      1.1.0
+// @version      1.1.1
 // @description  Prompt editor with one-click template blocks for Genit character creation.
 // @author       Codex
 // @match        https://genit.ai/*
