@@ -4,7 +4,20 @@
 
 Genit에서 복잡하고 긴 시스템 프롬프트를 효율적으로 작성하고 관리할 수 있는 Tampermonkey 스크립트입니다.
 
-**[📥 설치하기 (클릭)](https://github.com/devforai-creator/genit-prompt-ide/raw/main/src/gpi.user.js)** | [📖 사용 가이드](#-사용-방법) | [📝 변경 이력](./CHANGELOG.md)
+**[📥 설치하기 (클릭)](https://github.com/devforai-creator/genit-prompt-ide/raw/main/src/gpi.user.js)** | [⚡ 안 될 때 1분 체크](#-안-될-때-1분-체크리스트) | [📖 사용 가이드](#-사용-방법) | [📝 변경 이력](./CHANGELOG.md)
+
+---
+
+## ⚡ 안 될 때 1분 체크리스트
+
+설치는 했는데 **마법사 아이콘/팝업이 안 뜨는 경우**, 대부분 아래에서 해결됩니다.
+
+1. Tampermonkey 대시보드에서 `GPI (Genit Prompt IDE)` 스크립트가 **Enabled(활성화)** 상태인지 확인
+2. Chrome/Edge: `확장 프로그램` → `Tampermonkey` → **사용자 스크립트 허용** ON
+3. Genit 캐릭터 생성/편집 페이지(https://genit.ai/ko/create/content)에서 **새로고침만 하지 말고 브라우저 재시작/재로그인** 1회
+4. 광고 차단/스크립트 차단 확장 프로그램이 있으면 **잠깐 꺼보고** 재시도
+
+그래도 안 되면 `Issues`에 **브라우저/OS/증상 스크린샷**을 남겨주세요: https://github.com/devforai-creator/genit-prompt-ide/issues
 
 ---
 
@@ -44,6 +57,8 @@ Genit에서 복잡하고 긴 시스템 프롬프트를 효율적으로 작성하
 ---
 
 ## 📦 설치 방법
+
+설치 후 동작하지 않으면 먼저 [`⚡ 안 될 때 1분 체크리스트`](#-안-될-때-1분-체크리스트)를 확인하세요.
 
 ### 1. Tampermonkey 설치
 브라우저에 Tampermonkey 확장 프로그램을 설치하세요:
@@ -197,7 +212,12 @@ GNU General Public License v3.0 (GPL-3.0)
 
 ## 📞 문의
 
-프로젝트 관련 문의는 Issues를 이용해주세요.
+프로젝트 관련 문의/버그 제보는 `Issues`로 부탁드립니다: https://github.com/devforai-creator/genit-prompt-ide/issues
+
+등록 시 아래를 함께 적어주시면 재현에 도움이 됩니다:
+- 브라우저/버전 (Chrome/Firefox/Edge)
+- OS (Windows/macOS/Linux)
+- 증상 스크린샷 및 재현 단계
 
 ---
 
