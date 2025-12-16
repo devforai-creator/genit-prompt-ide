@@ -1,5 +1,10 @@
 # Tampermonkey Prompt Injector Roadmap (Codex)
 
+## Current Product Hypothesis (Persona)
+- Primary: “뭐부터 해야 할지 모르겠는” 신규/막막한 크리에이터(온보딩, 기본 틀, 가이드가 핵심 가치).
+- Secondary: “틀 한 번 잡고 복붙으로 졸업한” 사용자(Export/Import 같은 회수 기능은 수요 확인 후).
+- Keep it flexible: 커뮤니티 피드백/투표에 따라 우선순위는 2~3주 단위로 조정한다.
+
 ## Vision
 - Automate pasting `example.md` content into Genit character prompt input using Tampermonkey.
 - Keep script resilient to DOM changes and provide easy toggles for future prompt variants.
