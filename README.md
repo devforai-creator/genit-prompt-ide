@@ -6,6 +6,10 @@ Genit에서 복잡하고 긴 시스템 프롬프트를 효율적으로 작성하
 
 **[📥 설치하기 (클릭)](https://github.com/devforai-creator/genit-prompt-ide/raw/main/src/gpi.user.js)** | [⚡ 안 될 때 1분 체크](#-안-될-때-1분-체크리스트) | [📖 사용 가이드](#-사용-방법) | [📝 변경 이력](./CHANGELOG.md)
 
+![GPI 아이콘 위치 안내](./guide.png)
+
+> ✅ 이 화면에서 GPI 아이콘(마법사/팝업)이 보이면 정상 설치 상태입니다. (다른 페이지에서는 나타나지 않습니다)
+
 ---
 
 ## ⚡ 안 될 때 1분 체크리스트
