@@ -191,6 +191,8 @@ genit-prompt-ide/
 - [ ] 변수 치환 시스템 (`{{변수명}}`)
 - [ ] 글자 수 카운터
 - [ ] Import/Export (JSON, MD)
+- [ ] Clean Copy: 적용용 텍스트에서 `<!-- GPI:... -->` 마커 제거(클립보드 복사)
+- [ ] Clean Apply(옵션): 입력창에 넣을 때만 마커 제거
 
 자세한 로드맵은 [`reviews/roadmap/`](./reviews/roadmap/) 참고
 
